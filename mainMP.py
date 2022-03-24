@@ -13,7 +13,7 @@ from utils import imageToBase64
 def preprocess(img):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     height, width, _ = img.shape
-    x_new = 720  # x height y width
+    x_new = 720
     y_new = 1280
     # 判断图片的长宽比率
     if width / height >= y_new / x_new:
@@ -77,7 +77,7 @@ def recognize(skeleton_data):
     if isinstance(jointOutput, tuple):
         jointOutput, _ = jointOutput
     _, predict_lable = torch.topk(jointOutput.data, 5, 1)
-    print_log(f'关节预测：{predict_lable.tolist()}')
+    print_log(f'关节预测：{predict_lable.tolist()[0]}')
 
     boneModel = Model(num_class, num_point, num_person, num_gcn_scales, num_g3d_scales, graph).cuda(device)
     boneModel.load_state_dict(torch.load(modelBonePath))
@@ -88,12 +88,12 @@ def recognize(skeleton_data):
     if isinstance(boneOutput, tuple):
         jointOutput, _ = boneOutput
     _, predict_lable = torch.topk(boneOutput.data, 5, 1)
-    print_log(f'骨骼预测：{predict_lable.tolist()}')
+    print_log(f'骨骼预测：{predict_lable.tolist()[0]}')
 
     output = jointOutput.data + boneOutput.data
     _, predict_label = torch.topk(output, 5, 1)
-    print_log(f'双流预测：{predict_label.tolist()}')
-    return predict_label.tolist()[0]
+    print_log(f'双流预测：{predict_label.tolist()[0]}')
+    return predict_lable.tolist()[0]
 
 
 def push(imgList, label):
@@ -107,7 +107,7 @@ def push(imgList, label):
     try:
         r = requests.post(url=url, data=json.dumps(data))
         if r.ok and r.json().get('success'):
-            print_log('向Django推送成功')
+            print_log(f'向Django推送成功 记录帧数{len(imgList)}')
         else:
             print_log('向Django推送失败')
     except EOFError as e:
@@ -134,10 +134,15 @@ if __name__ == '__main__':
 
     # MediaPipe
     detector = PoseDetector()
-
+    # 计数
     count = 0
     has_skeleton = 0
-    step = 1
+    # 跳帧
+    step = 3
+    # 最大帧数 应小于300
+    max_frame = 50
+    # 有骨骼信息的帧占最大帧数的比例
+    rate = 0.5
     # 存储骨架信息
     data = {'data': []}
     # 关键帧
@@ -157,19 +162,19 @@ if __name__ == '__main__':
                 if len(ret) > 0:  # has_skeleton
                     skeleton_data = get_info(narray=ret)
                     has_skeleton += 1
-                    # 取中间帧作为记录帧
                 else:
                     skeleton_data = []
                 data['data'].append({'frame_index': frame_index, 'skeleton': skeleton_data})
-                if (count / step) % 30 == 0:
+                # 取中间帧作为记录帧
+                if frame_index % (max_frame / 10) == 0:
                     shot.append(frame)
 
-            # 每处理300帧骨骼信息进行一次动作识别
-            if count / step == 30:
-                with open('data.json', 'w') as f:
-                    json.dump(data, f)
-                # 占空比小于50%
-                if has_skeleton * 1.0 / count * step > 0.5:
+            # 每处理max_frame帧骨骼信息进行一次动作识别n
+            if count / step == max_frame:
+                # with open('./log/data.json', 'w') as f:
+                #     json.dump(data, f)
+                # 占空比小于rate 进行识别
+                if has_skeleton * 1.0 / count * step > rate:
                     pre = recognize(data)
                 else:  # 空白帧过多，跳过这段视频
                     pre = []
