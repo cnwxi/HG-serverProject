@@ -6,6 +6,7 @@ from model.mediapipe import PoseDetector, toOpenPosePoint
 from model.msg3d import Model
 import numpy as np
 import torch
+import requests
 
 
 # 图像预处理
@@ -23,11 +24,11 @@ def preprocess(img):
 
 
 def get_skeleton(img):
-    frame = detector.find_pose(img, draw=True)
+    img = detector.find_pose(img, draw=True)
     points = toOpenPosePoint(detector.get_positions())
-    cv2.namedWindow("MediaPipe", 0);
-    cv2.resizeWindow("MediaPipe", 640, 360);
-    cv2.imshow("MediaPipe", cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+    cv2.namedWindow("MediaPipe", 0)
+    cv2.resizeWindow("MediaPipe", 640, 360)
+    cv2.imshow("MediaPipe", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
     return points
 
 
@@ -92,10 +93,14 @@ def recognize(skeleton_data):
     output = jointOutput.data + boneOutput.data
     _, predict_label = torch.topk(output, 5, 1)
     print(f'双流预测：{predict_label.tolist()}')
-    return
+    return predict_label.tolist()[0]
 
 
 def push(img, msg):
+    url = 'http://127.0.0.1:8000/post_case'
+    data={
+
+    }
     return
 
 

@@ -39,7 +39,7 @@ try:
         skeleton_data.append({'pose': pose, 'score': score})
         # break
     data['data'].append({'frame_index': 1, 'skeleton': skeleton_data})
-    with open('test.json', 'w') as f:
+    with open('../log/test.json', 'w') as f:
         json.dump(data, f)
         f.close()
 
