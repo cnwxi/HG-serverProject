@@ -42,8 +42,8 @@ while True:
     img.append(frame)
     if len(img) == 3:
         nowTime = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        name = '../log/' + str(nowTime) + '.gif'
-        print(name)
+        name = '../log/save.gif'
+        print(str(nowTime))
         imageio.mimsave(name, img, "gif", duration=0.1)
         break
 data = {
@@ -63,7 +63,7 @@ for i in r.json()['data']:
     img.append(frame)
 
 nowTime = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-name = '../log/ret' + str(nowTime) + '.gif'
-print(name)
+name = '../log/ret.gif'
+print(str(nowTime))
 imageio.mimsave(name, img, "gif", duration=0.1)
 # cv2.destroyAllWindows()
