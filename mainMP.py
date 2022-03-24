@@ -1,12 +1,12 @@
 import json
 import time
-
 import cv2
-from model.mediapipe import PoseDetector, toOpenPosePoint
-from model.msg3d import Model
 import numpy as np
 import torch
 import requests
+from model.mediapipe import PoseDetector, toOpenPosePoint
+from model.msg3d import Model
+from utils import imageToBase64
 
 
 # 图像预处理
@@ -77,7 +77,7 @@ def recognize(skeleton_data):
     if isinstance(jointOutput, tuple):
         jointOutput, _ = jointOutput
     _, predict_lable = torch.topk(jointOutput.data, 5, 1)
-    print(f'关节预测：{predict_lable.tolist()}')
+    print_log(f'关节预测：{predict_lable.tolist()}')
 
     boneModel = Model(num_class, num_point, num_person, num_gcn_scales, num_g3d_scales, graph).cuda(device)
     boneModel.load_state_dict(torch.load(modelBonePath))
@@ -88,20 +88,30 @@ def recognize(skeleton_data):
     if isinstance(boneOutput, tuple):
         jointOutput, _ = boneOutput
     _, predict_lable = torch.topk(boneOutput.data, 5, 1)
-    print(f'骨骼预测：{predict_lable.tolist()}')
+    print_log(f'骨骼预测：{predict_lable.tolist()}')
 
     output = jointOutput.data + boneOutput.data
     _, predict_label = torch.topk(output, 5, 1)
-    print(f'双流预测：{predict_label.tolist()}')
+    print_log(f'双流预测：{predict_label.tolist()}')
     return predict_label.tolist()[0]
 
 
-def push(img, msg):
+def push(imgList, label):
     url = 'http://127.0.0.1:8000/post_case'
-    data={
-
+    data = {
+        'data': [],
+        'label': label
     }
-    return
+    for i in imgList:
+        data['data'].append(imageToBase64(i))
+    try:
+        r = requests.post(url=url, data=json.dumps(data))
+        if r.ok and r.json().get('success'):
+            print_log('向Django推送成功')
+        else:
+            print_log('向Django推送失败')
+    except EOFError as e:
+        print_log(e)
 
 
 def get_info(narray):
@@ -118,9 +128,9 @@ def print_log(msg):
 
 if __name__ == '__main__':
     # 从拉流中读取帧(暂时以本地视频替代
-    # cap = cv2.VideoCapture('./data/video.mp4')
+    cap = cv2.VideoCapture('./data/video.mp4')
     # 从摄像头读取
-    cap = cv2.VideoCapture(0)
+    # cap = cv2.VideoCapture(0)
 
     # MediaPipe
     detector = PoseDetector()
@@ -155,15 +165,15 @@ if __name__ == '__main__':
                     shot.append(frame)
 
             # 每处理300帧骨骼信息进行一次动作识别
-            if count / step == 300:
+            if count / step == 30:
                 with open('data.json', 'w') as f:
                     json.dump(data, f)
-                if has_skeleton > 250:
+                # 占空比小于50%
+                if has_skeleton * 1.0 / count * step > 0.5:
                     pre = recognize(data)
-                    msg = f''
                 else:  # 空白帧过多，跳过这段视频
-                    msg = f'无事发生'
-                push(shot, msg)
+                    pre = []
+                push(shot, pre)
                 count = 0
                 has_skeleton = 0
                 shot.clear()
