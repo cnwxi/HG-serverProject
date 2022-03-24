@@ -1,8 +1,6 @@
 import sys
 sys.path.insert(0, '')
 
-import math
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,7 +10,6 @@ from model.ms_gcn import MultiScale_GraphConv as MS_GCN
 from model.ms_tcn import MultiScale_TemporalConv as MS_TCN
 from model.ms_gtcn import SpatialTemporal_MS_GCN, UnfoldTemporalWindows
 from model.mlp import MLP
-from model.activation import activation_factory
 
 
 class MS_G3D(nn.Module):

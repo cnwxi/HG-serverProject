@@ -3,10 +3,8 @@ sys.path.insert(0, '')
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
-from model.ms_tcn import MultiScale_TemporalConv as MS_TCN
 from model.mlp import MLP
 from model.activation import activation_factory
 from graph.tools import k_adjacency, normalize_adjacency_matrix

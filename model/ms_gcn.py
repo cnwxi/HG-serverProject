@@ -3,12 +3,10 @@ sys.path.insert(0, '')
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
 from graph.tools import k_adjacency, normalize_adjacency_matrix
 from model.mlp import MLP
-from model.activation import activation_factory
 
 
 class MultiScale_GraphConv(nn.Module):

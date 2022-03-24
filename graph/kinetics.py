@@ -2,8 +2,6 @@ import sys
 sys.path.insert(0, '')
 sys.path.extend(['../'])
 
-import numpy as np
-
 from graph import tools
 
 # Joint index:
