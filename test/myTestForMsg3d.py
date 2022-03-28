@@ -1,4 +1,3 @@
-# 读取文件
 import json
 import os
 import pickle

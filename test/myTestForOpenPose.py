@@ -14,23 +14,24 @@ try:
     opWrapper = op.WrapperPython()
     opWrapper.configure(params)
     opWrapper.start()
-    imageToProcess = cv2.imread("../data/1.jpg")
+    imageToProcess = cv2.imread("../data/4.jpg")
     x, y, z = imageToProcess.shape
     imageToProcess = cv2.cvtColor(imageToProcess, cv2.COLOR_BGR2RGB)
     datum = op.Datum()
     datum.cvInputData = imageToProcess
     opWrapper.emplaceAndPop(op.VectorDatum([datum]))
     # print(len(datum.poseKeypoints))
-    # print(datum.poseKeypoints)
     print(datum.poseKeypoints.shape)
     # print("Body keypoints: \n" + str(datum.poseKeypoints))
-    # cv2.imshow("OpenPose 1.7.0", datum.cvOutputData)
+    cv2.imshow("OpenPose 1.7.0", datum.cvOutputData)
+    cv2.waitKey()
     data = {'data': []}
     skeleton_data = []
     for i in datum.poseKeypoints:
         print(i.shape)
         pose = i[:, :2]
-        pose = pose / [x, y]
+        # pose = pose / [x, y]
+        pose=pose.tolist()
         score = i[:, 2].tolist()
         pose = [round(i, 3) for item in pose for i in item]
         score = [round(i, 3) for i in score]

@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 import time
 import cv2
 import numpy as np
@@ -23,7 +24,7 @@ def preprocess(img):
     return img_new
 
 
-def get_skeleton(img):
+def get_skeleton(img, wrapper):
     datum = op.Datum()
     datum.cvInputData = img
     wrapper.emplaceAndPop(op.VectorDatum([datum]))
@@ -91,7 +92,7 @@ def recognize(skeleton_data):
     jointOutput = jointModel(jointData)
     if isinstance(jointOutput, tuple):
         jointOutput, _ = jointOutput
-    _, predict_lable = torch.topk(jointOutput.data, 5, 1)
+    _, predict_lable = torch.topk(jointOutput.data, 3, 1)
     print_log(f'关节预测：{predict_lable.tolist()[0]}')
 
     '''
@@ -106,23 +107,29 @@ def recognize(skeleton_data):
     # boneOutput = boneModel(boneData)
     # if isinstance(boneOutput, tuple):
     #     jointOutput, _ = boneOutput
-    # _, predict_lable = torch.topk(boneOutput.data, 5, 1)
+    # _, predict_lable = torch.topk(boneOutput.data, 3, 1)
     # print_log(f'骨骼预测：{predict_lable.tolist()[0]}')
     #
     # output = jointOutput.data + boneOutput.data
-    # _, predict_label = torch.topk(output, 5, 1)
+    # _, predict_label = torch.topk(output, 3, 1)
     # print_log(f'双流预测：{predict_label.tolist()[0]}')
+
+    del jointOutput
+    # del boneOutput
     return predict_lable.tolist()[0]
 
 
-def push(imgList, label):
+def push(imgList, label, userid):
     url = 'http://127.0.0.1:8000/post_case'
     data = {
         'data': [],
-        'label': label
+        'label': label,
+        'userid': userid,
+        "Content-type": "application/json"
     }
     for i in imgList:
         data['data'].append(imageToBase64(i))
+
     try:
         r = requests.post(url=url, data=json.dumps(data))
         if r.ok and r.json().get('success'):
@@ -151,9 +158,9 @@ def print_log(msg):
     print(msg)
 
 
-if __name__ == '__main__':
+def main(videio_path, userid):
     # 从拉流中读取帧(暂时以本地视频替代
-    cap = cv2.VideoCapture('./data/video.mp4')
+    cap = cv2.VideoCapture(videio_path)
     # 从摄像头读取
     # cap = cv2.VideoCapture(0)
 
@@ -169,15 +176,21 @@ if __name__ == '__main__':
     count = 0
     has_skeleton = 0
     # 跳帧
-    step = 3
+    step = 1
     # 最大帧数 应小于300
-    max_frame = 200
+    max_frame = 50
     # 有骨骼信息的帧占最大帧数的比例
     rate = 0.5
     # 存储骨架信息
     data = {'data': []}
     # 关键帧
+    shot_num = 5
     shot = []
+
+    with open('./label.json', 'r', encoding='utf-8') as f:
+        label = json.load(f)
+        f.close()
+
     while cap.isOpened():
         success, frame = cap.read()
         # 读取成功
@@ -185,20 +198,20 @@ if __name__ == '__main__':
             count += 1
             frame = preprocess(frame)
             if count % step == 0:
-                ret = get_skeleton(frame)
+                ret = get_skeleton(frame, wrapper)
                 x, y, _ = frame.shape
 
                 frame_index = int(count / step) - 1
                 print_log(f'第{frame_index}帧')
 
-                if len(ret) > 0:  # has_skeleton
+                if ret is not None:  # has_skeleton
                     skeleton_data = get_info(narray=ret, x=x, y=y)
                     has_skeleton += 1
                 else:
                     skeleton_data = []
                 data['data'].append({'frame_index': frame_index, 'skeleton': skeleton_data})
                 # 取中间帧作为记录帧
-                if (count / step) % (max_frame / 10) == 0:
+                if (count / step) % (max_frame / shot_num) == 0:
                     shot.append(frame)
                 # 测试
                 # if (count / step) % 30 == 0:
@@ -212,10 +225,14 @@ if __name__ == '__main__':
                 # 占空比小于rate 进行识别
                 if has_skeleton * 1.0 / count * step > rate:
                     pre = recognize(data)
-
+                    pre_label = []
+                    for i in pre:
+                        pre_label.append(label[str(i)])
+                    print_log(pre_label)
                 else:  # 空白帧过多，跳过这段视频
                     pre = []
-                push(shot, pre)
+                if True:
+                    push(imgList=shot, label=pre, userid=userid)
                 count = 0
                 has_skeleton = 0
                 shot.clear()
@@ -224,3 +241,33 @@ if __name__ == '__main__':
             cv2.destroyAllWindows()
             break
     cap.release()
+
+
+def get_link(username, password):
+    url = 'http://127.0.0.1:8000/get_link'
+    data = {
+        'username': username,
+        'password': password
+    }
+    ret = requests.get(url=url, data=json.dumps(data))
+    ret_data = ret.json()
+    if ret.ok and ret_data['success']:
+        return ret_data['data']
+    return
+
+
+if __name__ == '__main__':
+    # main(
+    #     "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\drinking\\_iujb_vthv0_000011_000021.mp4")
+    # main(
+    #     "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\tai_chi\\_2zDhdZrwOc_000153_000163.mp4")
+    list = get_link(username='wxi', password='123456')
+    print(list)
+    p_list = []
+    for i in list[0]:
+        userid = i[0]
+        link = i[1]
+        # link = "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\tai_chi\\_2zDhdZrwOc_000153_000163.mp4"
+        p_list.append(multiprocessing.Process(target=main, args=(link, userid,), daemon=True))
+    [p.start() for p in p_list]
+    [p.join() for p in p_list]

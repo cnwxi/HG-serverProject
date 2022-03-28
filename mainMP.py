@@ -23,7 +23,7 @@ def preprocess(img):
     return img_new
 
 
-def get_skeleton(img):
+def get_skeleton(img, detector):
     img = detector.find_pose(img, draw=True)
     points = toOpenPosePoint(detector.get_positions())
     cv2.namedWindow("MediaPipe", 0)
@@ -76,7 +76,7 @@ def recognize(skeleton_data):
     jointOutput = jointModel(jointData)
     if isinstance(jointOutput, tuple):
         jointOutput, _ = jointOutput
-    _, predict_lable = torch.topk(jointOutput.data, 5, 1)
+    _, predict_lable = torch.topk(jointOutput.data, 3, 1)
     print_log(f'关节预测：{predict_lable.tolist()[0]}')
 
     boneModel = Model(num_class, num_point, num_person, num_gcn_scales, num_g3d_scales, graph).cuda(device)
@@ -87,12 +87,15 @@ def recognize(skeleton_data):
     boneOutput = boneModel(boneData)
     if isinstance(boneOutput, tuple):
         jointOutput, _ = boneOutput
-    _, predict_lable = torch.topk(boneOutput.data, 5, 1)
+    _, predict_lable = torch.topk(boneOutput.data, 3, 1)
     print_log(f'骨骼预测：{predict_lable.tolist()[0]}')
 
     output = jointOutput.data + boneOutput.data
-    _, predict_label = torch.topk(output, 5, 1)
+    _, predict_label = torch.topk(output, 3, 1)
     print_log(f'双流预测：{predict_label.tolist()[0]}')
+
+    del boneOutput
+    del jointOutput
     return predict_lable.tolist()[0]
 
 
@@ -126,9 +129,9 @@ def print_log(msg):
     print(msg)
 
 
-if __name__ == '__main__':
+def main(video_path):
     # 从拉流中读取帧(暂时以本地视频替代
-    cap = cv2.VideoCapture('./data/video.mp4')
+    cap = cv2.VideoCapture(video_path)
     # 从摄像头读取
     # cap = cv2.VideoCapture(0)
 
@@ -138,15 +141,21 @@ if __name__ == '__main__':
     count = 0
     has_skeleton = 0
     # 跳帧
-    step = 3
+    step = 1
     # 最大帧数 应小于300
-    max_frame = 50
+    max_frame = 200
     # 有骨骼信息的帧占最大帧数的比例
     rate = 0.5
     # 存储骨架信息
     data = {'data': []}
     # 关键帧
     shot = []
+    # 是否推送
+
+    with open('./label.json', 'r', encoding='utf-8') as f:
+        label = json.load(f)
+        f.close()
+
     while cap.isOpened():
         success, frame = cap.read()
         # 读取成功
@@ -154,7 +163,7 @@ if __name__ == '__main__':
             count += 1
             frame = preprocess(frame)
             if count % step == 0:
-                ret = get_skeleton(frame)
+                ret = get_skeleton(frame, detector)
 
                 frame_index = int(count / step) - 1
                 print_log(f'第{frame_index}帧')
@@ -176,9 +185,12 @@ if __name__ == '__main__':
                 # 占空比小于rate 进行识别
                 if has_skeleton * 1.0 / count * step > rate:
                     pre = recognize(data)
+                    for i in pre:
+                        print(label[str(i)])
                 else:  # 空白帧过多，跳过这段视频
                     pre = []
-                push(shot, pre)
+                if False:
+                    push(shot, pre)
                 count = 0
                 has_skeleton = 0
                 shot.clear()
@@ -187,3 +199,12 @@ if __name__ == '__main__':
             cv2.destroyAllWindows()
             break
     cap.release()
+
+
+if __name__ == '__main__':
+    # main(
+    #     "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\crying\\_cE99P5nAYk_000034_000044.mp4")
+    # main(
+    #     "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\drinking\\_iujb_vthv0_000011_000021.mp4")
+    main(
+        "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\tai_chi\\_2zDhdZrwOc_000153_000163.mp4")

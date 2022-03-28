@@ -7,7 +7,7 @@ import numpy as np
 
 class PoseDetector:
     def __init__(self):
-        self.pose = mp.solutions.pose.Pose(True, False, True, False, 0.5, 0.5)
+        self.pose = mp.solutions.pose.Pose(True, False, True, False, 0.7, 0.6)
 
     def find_pose(self, img, draw=True):
         # pose.process(imgRGB) 会识别这帧图片中的人体姿势数据，保存到self.results中
@@ -30,11 +30,11 @@ class PoseDetector:
         self.lmslist = []
         if self.results.pose_landmarks:
             for id, lm in enumerate(self.results.pose_landmarks.landmark):
-                # h, w, c = img.shape
-                # cx, cy = int(lm.x * w), int(lm.y * h)
-                # self.lmslist.append([id, cx, cy])
-                cx, cy = lm.x, lm.y
-                self.lmslist.append([cx, cy])
+                if lm.visibility > 0.6:
+                    position = [lm.x, lm.y]
+                else:
+                    position = [0, 0]
+                self.lmslist.append(position)
         return self.lmslist
 
 

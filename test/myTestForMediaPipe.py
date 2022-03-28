@@ -7,7 +7,7 @@ import numpy as np
 
 class PoseDetector:
     def __init__(self):
-        self.pose = mp.solutions.pose.Pose(True, False, True, False, 0.5, 0.5)
+        self.pose = mp.solutions.pose.Pose(True, False, True, False, 0.8, 0.5)
 
     def find_pose(self, img, draw=True):
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -19,7 +19,7 @@ class PoseDetector:
                                                           mp.solutions.pose.POSE_CONNECTIONS)
         return img
 
-    def find_positions(self):
+    def find_positions(self, img):
         """
         获取人体姿势数据
         :param img: 一帧图像
@@ -30,12 +30,17 @@ class PoseDetector:
         # id代表人体的某个关节点，x和y代表坐标位置数据
         self.lmslist = []
         if self.results.pose_landmarks:
+            print(self.results.pose_landmarks)
             for id, lm in enumerate(self.results.pose_landmarks.landmark):
-                # h, w, c = img.shape
-                # cx, cy = int(lm.x * w), int(lm.y * h)
-                # self.lmslist.append([id, cx, cy])
-                cx, cy = lm.x, lm.y
-                self.lmslist.append([cx, cy])
+                h, w, c = img.shape
+                cx, cy = int(lm.x * w), int(lm.y * h)
+                if lm.visibility > 0.6:
+                    self.lmslist.append([cx, cy])
+                else:
+                    self.lmslist.append([0, 0])
+                # cx, cy = lm.x, lm.y
+                # self.lmslist.append([cx, cy])
+        print(self.lmslist)
         return self.lmslist
 
 
@@ -69,35 +74,17 @@ def toOpenPosePoint(list):
 
 if __name__ == '__main__':
     # 获取摄像头，传入0表示获取系统默认摄像头
-    cap = cv2.VideoCapture(0)
+    frame = cv2.imread('../data/4.jpg')
     detector = PoseDetector()
-    # cap = open(0)
-    time0 = 0
-    while cap.isOpened():
-        # 获取画面
-        success, frame = cap.read()
-        if not success:
-            print("Error")
-            break
-        # 处理帧函数
-        frame = detector.find_pose(frame)
-        # print(detector.find_positions())
-        points = toOpenPosePoint(detector.find_positions())
-        print(f"points {points}")
-        # 展示图像
-        time1 = time.time()
-        fps = 1 / (time1 - time0)
-        time0 = time1
-        cv2.putText(frame, str(int(fps)), (70, 50), cv2.FONT_HERSHEY_PLAIN, 3,
-                    (255, 0, 0), 3)
-        cv2.namedWindow("MediaPipe", 0);
-        cv2.resizeWindow("MediaPipe", 640, 360);
-        cv2.imshow("MediaPipe", frame)
-        # 按下键盘q或者ese退出
-        if cv2.waitKey(1) in [ord('q'), 27]:
-            break
 
-    # 关闭摄像头
-    cap.release()
+    frame = detector.find_pose(frame)
+    # print(detector.find_positions())
+    points = toOpenPosePoint(detector.find_positions(frame))
+    print(f"points {points}")
+    points = np.array(points)
+
+    cv2.imshow("MediaPipe", frame)
+    cv2.waitKey()
+
     # 关闭图像窗口
     cv2.destroyAllWindows()
