@@ -8,6 +8,19 @@ import requests
 from openpose import pyopenpose as op
 from model.msg3d import Model
 from utils import imageToBase64
+import torch.nn.functional as nnf
+
+label = {0: '跑步',
+         1: '摔倒',
+         2: '吸烟',
+         3: '撞到头',
+         4: '仰卧起坐',
+         5: '俯卧撑',
+         6: '太极',
+         7: '喝',
+         8: '蹲',
+         9: '爬梯'
+         }
 
 
 # 图像预处理
@@ -60,7 +73,7 @@ def getItem(data):
 
 
 def recognize(skeleton_data):
-    modelJointPath = './msg3dModels/kinetics-joint.pt'
+    modelJointPath = './msg3dModels/myModel_joint.pt'
     modelBonePath = './msg3dModels/kinetics-bone.pt'
     data = getItem(skeleton_data)
     jointData = np.zeros((1, 3, 300, 18, 2))
@@ -75,7 +88,7 @@ def recognize(skeleton_data):
     jointData[:, :3, :, :, :] = jointData
     for v1, v2 in bone_pairs:
         boneData[:, :, :, v1, :] = jointData[:, :, :, v1, :] - jointData[:, :, :, v2, :]
-    num_class = 400
+    num_class = 10
     num_point = 18
     num_person = 2
     num_gcn_scales = 8
@@ -92,8 +105,20 @@ def recognize(skeleton_data):
     jointOutput = jointModel(jointData)
     if isinstance(jointOutput, tuple):
         jointOutput, _ = jointOutput
-    _, predict_lable = torch.topk(jointOutput.data, 3, 1)
-    print_log(f'关节预测：{predict_lable.tolist()[0]}')
+    prob = nnf.softmax(jointOutput, dim=1)
+    top_p, top_class = prob.topk(3, dim=1)
+    # print(top_p,top_class)
+    top_p = top_p.tolist()[0]
+    top_class = top_class.tolist()[0]
+    pre_class = []
+    for i in range(3):
+        if top_p[i] > 0.18:
+            pre_class.append(top_class[i])
+    print_log(top_p)
+    print_log(top_class)
+    print_log(pre_class)
+    # _, predict_lable = torch.topk(jointOutput.data, 3, 1)
+    # print_log(f'关节预测：{predict_lable.tolist()[0]}')
 
     '''
     性能限制只能跑一个
@@ -116,7 +141,7 @@ def recognize(skeleton_data):
 
     del jointOutput
     # del boneOutput
-    return predict_lable.tolist()[0]
+    return pre_class
 
 
 def push(imgList, label, userid):
@@ -159,7 +184,7 @@ def print_log(msg):
 
 
 def main(videio_path, userid):
-    # 从拉流中读取帧(暂时以本地视频替代
+    # 从拉流中读取帧
     cap = cv2.VideoCapture(videio_path)
     # 从摄像头读取
     # cap = cv2.VideoCapture(0)
@@ -186,10 +211,11 @@ def main(videio_path, userid):
     # 关键帧
     shot_num = 5
     shot = []
-
-    with open('./label.json', 'r', encoding='utf-8') as f:
-        label = json.load(f)
-        f.close()
+    # 是否POST
+    push_flag = True
+    # with open('./label.json', 'r', encoding='utf-8') as f:
+    #     label = json.load(f)
+    #     f.close()
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -200,10 +226,9 @@ def main(videio_path, userid):
             if count % step == 0:
                 ret = get_skeleton(frame, wrapper)
                 x, y, _ = frame.shape
-
+                if int(count / step) % 5 == 0:
+                    print_log(f'第{int(count / step)}帧')
                 frame_index = int(count / step) - 1
-                print_log(f'第{frame_index}帧')
-
                 if ret is not None:  # has_skeleton
                     skeleton_data = get_info(narray=ret, x=x, y=y)
                     has_skeleton += 1
@@ -227,11 +252,11 @@ def main(videio_path, userid):
                     pre = recognize(data)
                     pre_label = []
                     for i in pre:
-                        pre_label.append(label[str(i)])
+                        pre_label.append(label[i])
                     print_log(pre_label)
                 else:  # 空白帧过多，跳过这段视频
                     pre = []
-                if True:
+                if push_flag:
                     push(imgList=shot, label=pre, userid=userid)
                 count = 0
                 has_skeleton = 0
@@ -257,17 +282,19 @@ def get_link(username, password):
 
 
 if __name__ == '__main__':
-    # main(
-    #     "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\drinking\\_iujb_vthv0_000011_000021.mp4")
-    # main(
-    #     "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\tai_chi\\_2zDhdZrwOc_000153_000163.mp4")
-    list = get_link(username='wxi', password='123456')
-    print(list)
-    p_list = []
-    for i in list[0]:
-        userid = i[0]
-        link = i[1]
-        # link = "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\tai_chi\\_2zDhdZrwOc_000153_000163.mp4"
-        p_list.append(multiprocessing.Process(target=main, args=(link, userid,), daemon=True))
-    [p.start() for p in p_list]
-    [p.join() for p in p_list]
+
+    if True:
+        main(
+            "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\tai_chi\\_2zDhdZrwOc_000153_000163.mp4",
+            2)
+    else:
+        list = get_link(username='wxi', password='123456')
+        print(list)
+        p_list = []
+        for i in list[0]:
+            userid = i[0]
+            link = i[1]
+            # link = "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\tai_chi\\_2zDhdZrwOc_000153_000163.mp4"
+            p_list.append(multiprocessing.Process(target=main, args=(link, userid,), daemon=True))
+        [p.start() for p in p_list]
+        [p.join() for p in p_list]

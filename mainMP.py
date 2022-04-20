@@ -44,7 +44,7 @@ def getItem(data):
 
 
 def recognize(skeleton_data):
-    modelJointPath = './msg3dModels/kinetics-joint.pt'
+    modelJointPath = './msg3dModels/myModel_joint.pt'
     modelBonePath = './msg3dModels/kinetics-bone.pt'
     data = getItem(skeleton_data)
     jointData = np.zeros((1, 3, 300, 18, 2))
