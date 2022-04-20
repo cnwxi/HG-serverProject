@@ -85,10 +85,11 @@ class MSG3D:
             worker_init_fn=workfn
         )
 
-    def tarin(self, forward_batch_size):
+    def tarin(self,epoch, forward_batch_size):
         self.model.train()
         loader = self.data_loader
         loss_values = []
+
         for batch_idx, (data, label, index) in enumerate(loader):
             with torch.no_grad():
                 data = data.float().cuda(self.device)
@@ -124,7 +125,7 @@ class MSG3D:
             [k.split('module.')[-1], v.cpu()]
             for k, v in state_dict.items()
         ])
-        save_path = '../msg3dModels/myModel.pt'
+        save_path = f'../msg3dModels/myModel_{epoch}.pt'
         torch.save(weights, save_path)
 
 
@@ -137,5 +138,5 @@ if __name__ == '__main__':
                     label_path='../data/testLabel.pkl',
                     batch_size=batch_size)
     epoch = 1
-    for i in range(epoch):
-        msg3d.tarin(forward_batch_size)
+    for i in epoch:
+        msg3d.tarin(epoch,forward_batch_size)
