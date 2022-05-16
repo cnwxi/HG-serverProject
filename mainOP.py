@@ -1,6 +1,7 @@
 import json
 import multiprocessing
 import time
+from time import perf_counter
 import cv2
 import numpy as np
 import torch
@@ -10,15 +11,15 @@ from model.msg3d import Model
 from utils import imageToBase64
 import torch.nn.functional as nnf
 
-label = {0: '跑步',
-         1: '摔倒',
+label = {0: '跑步',  # test1
+         1: '以头抢地',
          2: '吸烟',
          3: '撞到头',
-         4: '仰卧起坐',
-         5: '俯卧撑',
-         6: '太极',
+         4: '仰卧起坐',  # test3
+         5: '俯卧撑',  # test2
+         6: '太极',  # test
          7: '喝',
-         8: '蹲',
+         8: '深蹲',
          9: '爬梯'
          }
 
@@ -26,14 +27,15 @@ label = {0: '跑步',
 # 图像预处理
 def preprocess(img):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    height, width, _ = img.shape
-    x_new = 720
-    y_new = 1280
-    # 判断图片的长宽比率
-    if width / height >= y_new / x_new:
-        img_new = cv2.resize(img, (y_new, int(height * y_new / width)))
-    else:
-        img_new = cv2.resize(img, (int(width * x_new / height), x_new))
+    img_new = img
+    # height, width, _ = img.shape
+    # x_new = 720
+    # y_new = 1280
+    # # 判断图片的长宽比率
+    # if width / height >= y_new / x_new:
+    #     img_new = cv2.resize(img, (y_new, int(height * y_new / width)))
+    # else:
+    #     img_new = cv2.resize(img, (int(width * x_new / height), x_new))
     return img_new
 
 
@@ -74,7 +76,7 @@ def getItem(data):
 
 def recognize(skeleton_data):
     modelJointPath = './msg3dModels/myModel_joint.pt'
-    modelBonePath = './msg3dModels/kinetics-bone.pt'
+    # modelBonePath = './msg3dModels/kinetics-bone.pt'
     data = getItem(skeleton_data)
     jointData = np.zeros((1, 3, 300, 18, 2))
     # 得到关节信息
@@ -111,7 +113,7 @@ def recognize(skeleton_data):
     top_p = top_p.tolist()[0]
     top_class = top_class.tolist()[0]
     pre_class = []
-    for i in range(3):
+    for i in range(1):
         if top_p[i] > 0.18:
             pre_class.append(top_class[i])
     print_log(top_p)
@@ -183,9 +185,9 @@ def print_log(msg):
     print(msg)
 
 
-def main(videio_path, userid):
+def main(video_path, userid):
     # 从拉流中读取帧
-    cap = cv2.VideoCapture(videio_path)
+    cap = cv2.VideoCapture(video_path)
     # 从摄像头读取
     # cap = cv2.VideoCapture(0)
 
@@ -203,7 +205,7 @@ def main(videio_path, userid):
     # 跳帧
     step = 1
     # 最大帧数 应小于300
-    max_frame = 50
+    max_frame = 100
     # 有骨骼信息的帧占最大帧数的比例
     rate = 0.5
     # 存储骨架信息
@@ -216,8 +218,9 @@ def main(videio_path, userid):
     # with open('./label.json', 'r', encoding='utf-8') as f:
     #     label = json.load(f)
     #     f.close()
-
+    count2 = 0
     while cap.isOpened():
+
         success, frame = cap.read()
         # 读取成功
         if success:
@@ -257,14 +260,18 @@ def main(videio_path, userid):
                 else:  # 空白帧过多，跳过这段视频
                     pre = []
                 if push_flag:
+                    if not check_link(video_path=video_path, userid=userid):
+                        print('link 不一致')
+                        break
                     push(imgList=shot, label=pre, userid=userid)
                 count = 0
                 has_skeleton = 0
                 shot.clear()
                 data['data'].clear()
-        if cv2.waitKey(1) == ord('1'):
-            cv2.destroyAllWindows()
-            break
+        else:
+            count2 += 1
+            if count2 >= 100:
+                break
     cap.release()
 
 
@@ -281,20 +288,63 @@ def get_link(username, password):
     return
 
 
-if __name__ == '__main__':
+def check_link(video_path, userid):
+    url = 'http://127.0.0.1:8000/check_link'
+    data = {
+        'userid': userid
+    }
+    ret = requests.get(url=url, data=json.dumps(data))
+    ret_data = ret.json()
+    if ret.ok and ret_data['success']:
+        if ret_data['link'] != video_path:
+            return False
+    return True
 
-    if True:
-        main(
-            "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\tai_chi\\_2zDhdZrwOc_000153_000163.mp4",
-            2)
+
+if __name__ == '__main__':
+    flag = False
+    if flag:
+        main("./data/test1.mp4", 2)
     else:
+        p_list = []
+        link_dict = {}
         list = get_link(username='wxi', password='123456')
         print(list)
-        p_list = []
-        for i in list[0]:
+
+        for i in list:
             userid = i[0]
             link = i[1]
+            userid_str = str(userid)
+            link_dict[str(userid_str)] = link
             # link = "D:\\Users\\xiang\\Downloads\\Compressed\\tiny-Kinetics-400\\tiny-Kinetics-400\\tai_chi\\_2zDhdZrwOc_000153_000163.mp4"
             p_list.append(multiprocessing.Process(target=main, args=(link, userid,), daemon=True))
         [p.start() for p in p_list]
         [p.join() for p in p_list]
+        t0 = perf_counter()
+        while True:
+            if cv2.waitKey(1) == ord('1'):
+                cv2.destroyAllWindows()
+                break
+
+            t1 = perf_counter()
+            if t1 - t0 < 60:
+                continue
+            else:
+                t0 = t1
+            p_list.clear()
+            list = get_link(username='wxi', password='123456')
+            for i in list:
+                userid = i[0]
+                link = i[1]
+                userid_str = str(userid)
+                if userid_str in link_dict:
+                    if link == link_dict[userid_str]:
+                        continue
+                    else:
+                        link_dict[str(userid_str)] = link
+                        p_list.append(multiprocessing.Process(target=main, args=(link, userid,), daemon=True))
+                else:
+                    link_dict[userid] = link
+                    p_list.append(multiprocessing.Process(target=main, args=(link, userid,), daemon=True))
+            [p.start() for p in p_list]
+            [p.join() for p in p_list]

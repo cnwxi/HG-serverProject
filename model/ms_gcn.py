@@ -50,11 +50,3 @@ class MultiScale_GraphConv(nn.Module):
         support = support.permute(0,3,1,2,4).contiguous().view(N, self.num_scales*C, T, V)
         out = self.mlp(support)
         return out
-
-
-if __name__ == "__main__":
-    from graph.ntu_rgb_d import AdjMatrixGraph
-    graph = AdjMatrixGraph()
-    A_binary = graph.A_binary
-    msgcn = MultiScale_GraphConv(num_scales=15, in_channels=3, out_channels=64, A_binary=A_binary)
-    msgcn.forward(torch.randn(16,3,30,25))

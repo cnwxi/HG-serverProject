@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import torch
 import requests
-from model.mediapipe import PoseDetector, toOpenPosePoint
+from mymediapipe.mediapipe import PoseDetector, toOpenPosePoint
 from model.msg3d import Model
 from utils import imageToBase64
 
