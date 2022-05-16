@@ -4,6 +4,11 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/venv" />
       <excludeFolder url="file://$MODULE_DIR$/data" />
+      <excludeFolder url="file://$MODULE_DIR$/OpenPoseModels/cameraParameters" />
+      <excludeFolder url="file://$MODULE_DIR$/OpenPoseModels/face" />
+      <excludeFolder url="file://$MODULE_DIR$/OpenPoseModels/hand" />
+      <excludeFolder url="file://$MODULE_DIR$/OpenPoseModels/pose/body_25" />
+      <excludeFolder url="file://$MODULE_DIR$/OpenPoseModels/pose/mpi" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
